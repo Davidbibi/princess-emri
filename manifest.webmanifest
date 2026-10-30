@@ -1,6 +1,6 @@
 {
-  "name": "Princess Emri - Magic Kingdoms",
-  "short_name": "Princess Emri",
+  "name": "WordLand",
+  "short_name": "WordLand",
   "lang": "he",
   "dir": "rtl",
   "start_url": "./",
@@ -10,6 +10,6 @@
   "theme_color": "#e8dcff",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }
