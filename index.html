@@ -601,7 +601,7 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   <div id="fx"></div>
 </div>
 
-<script src="voice.js?v=202610301230"></script>
+<script src="voice.js?v=202610301233"></script>
 <script>
 (() => {
   // ---------- Content ----------
@@ -2039,10 +2039,13 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
     card.addEventListener('click', () => { if (performance.now() - shown > 1300) close(); });
     timer = setTimeout(close, 3800);
   }
-  $('#repeatBtn').addEventListener('click', () => {
+  const sayTarget = () => {
     if (!G) return;
-    if (G.type === 'memory') { if (G.last) say(G.last.en); } else say(G.targets[G.i].en);
-  });
+    if (G.type === 'memory') { if (G.last) say(G.last.en); } else if (G.targets[G.i]) say(G.targets[G.i].en);
+  };
+  $('#repeatBtn').addEventListener('click', sayTarget);
+  // Tapping the written word or the picture in the bubble says it too (Lavi taps the word when he can't read it).
+  ['#promptText', '#promptPic'].forEach(s => { $(s).style.cursor = 'pointer'; $(s).addEventListener('click', sayTarget); });
 
   // ---------- Help for Emri ----------
   // No touch for a while: say the word again and nudge the speaker button.
