@@ -1,5 +1,5 @@
-const CACHE = 'emri-202610301113';
-const FILES = ['./', 'index.html', 'voice.js?v=202610301113', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'emri-202610301144';
+const FILES = ['./', 'index.html', 'voice.js?v=202610301144', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
