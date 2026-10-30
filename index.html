@@ -362,6 +362,29 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
 .card .pic.veil { border-radius: 30px; background: repeating-linear-gradient(45deg, #f6ecfd 0 18px, #efe0fb 18px 36px); }
 .card .pic.veil > * { visibility: hidden; }
 .card .heb.veil { visibility: hidden; }
+/* Emri's cards wake up with a tap: colors and shapes get painted, pictures come out of a gift, things get counted one by one */
+.card { position: relative; }
+.card .pic.sleep { filter: grayscale(1) opacity(.5); }
+.card .pic.gift { position: relative; border-radius: 30px; background: repeating-linear-gradient(45deg, #ffe3f1 0 18px, #ffd1e8 18px 36px); }
+.card .pic.gift > * { visibility: hidden; }
+.card .pic.gift::after { content: "🎁"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 46cqw; animation: wiggle 1.6s ease-in-out infinite; }
+.card .pic.woke { animation: splash .6s ease; }
+@keyframes splash { 0% { transform: scale(.8) rotate(-8deg); } 60% { transform: scale(1.14) rotate(4deg); } 100% { transform: scale(1); } }
+.cups span { transition: opacity .2s, filter .2s; }
+.cups span.off { opacity: .22; filter: grayscale(1); }
+.cups span.lit { animation: pop .4s ease; }
+.tap-hint { position: absolute; top: 34%; left: 4%; font-size: clamp(44px, 7vmin, 70px); line-height: 1; pointer-events: none; animation: tapme 1.1s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(74,33,96,.3)); }
+@keyframes tapme { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-14px) scale(1.08); } }
+/* Next fills up while the word is heard, and only lights up once the card has been woken */
+#nextBtn { position: relative; overflow: hidden; isolation: isolate; }
+#nextBtn > span { position: relative; z-index: 1; }
+#nextBtn.wait { background: #dcc6ef; box-shadow: 0 6px 0 #c3a5df; }
+#nextBtn.wait::before { content: ""; position: absolute; inset: 0; z-index: 0; background: var(--berry); transform-origin: right; transform: scaleX(var(--fill, 0)); transition: transform var(--ms, 0ms) linear; }
+#nextBtn.ready { animation: pop .5s ease; }
+#nextBtn.no { animation: shake .45s ease; }
+/* after a mistake Emri sees the word's card again for a moment */
+.again-card { cursor: pointer; animation: pop .45s ease; }
+.again-card h3 { margin: 0; direction: ltr; font-size: clamp(28px, 5vmin, 48px); color: var(--berry); }
 /* skip the cards and go straight to the game (replays, and always for Lavi) */
 .btn.play { background: var(--mint); color: #fff; box-shadow: 0 6px 0 #1f8f6e; font-size: clamp(26px, 4.4vmin, 44px); padding: .35em 1.1em; }
 .btn.play:active { box-shadow: 0 2px 0 #1f8f6e; }
@@ -583,7 +606,7 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   <div id="fx"></div>
 </div>
 
-<script src="voice.js?v=202610301144"></script>
+<script src="voice.js?v=202610301220"></script>
 <script>
 (() => {
   // ---------- Content ----------
@@ -1702,13 +1725,17 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
 
   // ---------- Learn ----------
   let L = null, li = 0;
+  // Emri's cards: woke = cards she has already woken up in this visit; lr = the Next button's state for the card on screen.
+  const woke = new Set(), NUMS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+  const WAIT = 2000;
+  let lr = { token: 0 };
   function startLevel(level) {
     L = level;
     if (L.kind === 'mix') { startGame(); return; }
-    li = 0;
+    li = 0; woke.clear();
     $('#learnTitle').innerHTML = `${L.he} · <span class="en">${L.name}</span>`;
-    // Lavi can always skip the cards; Emri can once she has stars here.
-    $('#skipBtn').hidden = !(reads() || progress.stars[L.id]);
+    // Lavi can always skip the cards; Emri goes through them every time (she used to rush past them to the game).
+    $('#skipBtn').hidden = !reads();
     show('learn');
     say(`${L.say}!`);
     renderLearn(true);
@@ -1724,10 +1751,63 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
     card.classList.remove('flip'); void card.offsetWidth; card.classList.add('flip');
     $('#dots').innerHTML = L.words.map((_, k) => `<span class="${k === li ? 'on' : ''}"></span>`).join('');
     $('#prevBtn').style.visibility = li ? 'visible' : 'hidden';
-    $('#nextBtn').textContent = li === L.words.length - 1 ? `${T('play')} ◀` : 'הבא ◀';
-    if (!reads()) say(w.en, queue);
+    $('#nextBtn').innerHTML = `<span>${li === L.words.length - 1 ? `${T('play')} ◀` : 'הבא ◀'}</span>`;
+    if (!reads()) { say(w.en, queue); sleepCard(w); }
+    else $('#nextBtn').classList.remove('wait', 'ready', 'no'); // Lavi moves on whenever he likes
+  }
+
+  // Emri: the card starts asleep (grey, wrapped, or not yet counted) and a tap wakes it. Next fills up over WAIT ms
+  // while she hears the word, stops short of full until the card is woken, and only then can be pressed.
+  function sleepCard(w) {
+    const nb = $('#nextBtn'), pic = $('#learnCard .pic'), token = ++lr.token;
+    const done = woke.has(li);
+    if (!done) {
+      if (w.kind === 'count') pic.querySelectorAll('.cups span').forEach(s => s.classList.add('off'));
+      else pic.classList.add(w.kind === 'pic' ? 'gift' : 'sleep');
+      setTimeout(() => {
+        if (lr.token !== token || woke.has(li)) return;
+        $('#learnCard').insertAdjacentHTML('beforeend', '<div class="tap-hint" aria-hidden="true">👆</div>');
+      }, 1500);
+    }
+    nb.classList.remove('ready', 'no');
+    // A card she already woke (going back and forth) needs no second wait.
+    if (done) { lr = { token, heard: true, end: 0 }; return; }
+    lr = { token, heard: false, end: performance.now() + WAIT };
+    nb.classList.add('wait');
+    fill(0, 0); void nb.offsetWidth;
+    fill(.7, WAIT);
+    setTimeout(() => { if (lr.token === token) { lr.heard = true; checkNext(); } }, WAIT);
+  }
+  function fill(v, ms) { const nb = $('#nextBtn'); nb.style.setProperty('--ms', `${ms}ms`); nb.style.setProperty('--fill', v); }
+  function checkNext() {
+    if (!lr.heard || !woke.has(li)) return;
+    const nb = $('#nextBtn');
+    if (!nb.classList.contains('wait')) return;
+    nb.classList.remove('wait'); nb.classList.add('ready'); sfx.flip();
+  }
+  function wakeCard() {
+    const w = L.words[li], card = $('#learnCard'), pic = card.querySelector('.pic');
+    if (w.kind === 'count') {
+      const off = pic.querySelectorAll('.cups span.off');
+      if (!off.length) return false;
+      const s = off[0], n = w.n - off.length;
+      s.classList.remove('off'); s.classList.add('lit'); sfx.pop();
+      say(NUMS[n], true); // queued, so fast taps still count "one, two, three" in full
+      if (off.length > 1) return true; // keep counting
+    } else {
+      if (!pic.matches('.sleep, .gift')) return false;
+      pic.classList.remove('sleep', 'gift'); pic.classList.add('woke');
+      sfx.good(); say(w.en);
+    }
+    woke.add(li);
+    card.querySelectorAll('.tap-hint').forEach(h => h.remove());
+    burst(pic); mood('happy');
+    fill(1, Math.max(250, lr.end - performance.now()));
+    checkNext();
+    return true;
   }
   function tapLearnCard() {
+    if (!reads() && wakeCard()) return;
     const card = $('#learnCard');
     card.querySelectorAll('.veil').forEach(v => v.classList.remove('veil'));
     card.classList.remove('flip'); void card.offsetWidth; card.classList.add('flip');
@@ -1738,6 +1818,13 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   $('#skipBtn').addEventListener('click', () => { sfx.tap(); startGame(); });
   $('#prevBtn').addEventListener('click', () => { if (li > 0) { sfx.tap(); li--; renderLearn(); } });
   $('#nextBtn').addEventListener('click', () => {
+    const nb = $('#nextBtn');
+    if (!reads() && nb.classList.contains('wait')) {
+      // Too early: a gentle shake, and the hand on the card if it still needs waking.
+      nb.classList.remove('no'); void nb.offsetWidth; nb.classList.add('no');
+      if (!woke.has(li)) { const h = $('#learnCard .tap-hint'); if (h) { h.style.animation = 'none'; void h.offsetWidth; h.style.animation = ''; } }
+      return;
+    }
     sfx.tap();
     if (li < L.words.length - 1) { li++; renderLearn(); } else startGame();
   });
@@ -1858,7 +1945,7 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   }
   function renderRound(queue) {
     const t = G.targets[G.i];
-    G.cur = roundType(t); G.locked = false; G.missed = new Set();
+    G.cur = roundType(t); G.locked = false; G.missed = new Set(); G.looked = false;
     quietUntil = performance.now() + 400; // a fast double tap on the last answer must not hit the new round
     // Lavi's quiz rounds take turns: read the word and pick the picture (dir 0), see the picture and pick the word (dir 1).
     // Bubbles and feed always show the written word.
@@ -1925,9 +2012,37 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
     // Name what she picked, then repeat the word she is looking for. Lavi only hears what he picked.
     say(`${w.en}.`);
     if (reads()) return;
+    if (!G.looked) { G.looked = true; lookAgain(t); return; }
     say(`${t.en}?`, true);
     if (G.missed.size >= 2 && G.rightEl) G.rightEl.classList.add('glow');
     helpLater();
+  }
+  // Emri's first slip in a round: the word's card comes up for a moment ("Look again!"), then she tries the same question.
+  function lookAgain(t) {
+    const g = G, ov = $('#overlay');
+    G.locked = true; clearTimeout(idleTimer);
+    ov.innerHTML = `<div class="win-card again-card" role="button" tabindex="0" aria-label="${t.he}">
+      <h3>Look again!</h3>
+      <div class="card"><div class="pic">${picHTML(t)}</div>
+        <div class="word ${t.kind === 'color' ? 'ink' : ''}">${t.kind === 'count' ? `<span class="digit">${t.n}</span>` : ''}${t.en}</div>
+        <div class="heb">${t.he}</div></div></div>`;
+    overlay(true);
+    $('#fx').querySelectorAll('.demo-hand').forEach(h => h.remove()); // the first-round hand would show her the answer
+    say('Look again!', true); say(t.en, true);
+    const shown = performance.now(), card = ov.firstElementChild;
+    let timer = 0;
+    const close = () => {
+      clearTimeout(timer);
+      // Only this card: by now the overlay may hold the win card instead.
+      if (G !== g || ov.hidden || ov.firstElementChild !== card) return;
+      overlay(false); ov.innerHTML = '';
+      G.locked = false;
+      say(`${t.en}?`);
+      helpLater();
+    };
+    // A tap closes it, but not before she has seen it for a moment.
+    card.addEventListener('click', () => { if (performance.now() - shown > 1300) close(); });
+    timer = setTimeout(close, 3800);
   }
   $('#repeatBtn').addEventListener('click', () => {
     if (!G) return;
@@ -1942,7 +2057,7 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
     if (!G || reads() || G.type === 'memory') return;
     const g = G;
     idleTimer = setTimeout(() => {
-      if (G !== g || G.locked || !$('#overlay').hidden || $('#quiz').hidden) return;
+      if (G !== g || G.locked || !$('#overlay').hidden || $('#quiz').hidden || !G.targets[G.i]) return;
       say(G.targets[G.i].en);
       const b = $('#repeatBtn'); b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge');
       helpLater();
