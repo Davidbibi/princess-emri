@@ -601,7 +601,7 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   <div id="fx"></div>
 </div>
 
-<script src="voice.js?v=202610301233"></script>
+<script src="voice.js?v=202610301528"></script>
 <script>
 (() => {
   // ---------- Content ----------
@@ -1766,7 +1766,8 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
     }
     nb.classList.remove('ready', 'no');
     // A card she already woke (going back and forth) needs no second wait.
-    if (done) { lr = { token, heard: true, end: 0 }; return; }
+    // (Coming back from a card that was still filling must not leave Next stuck in 'wait'.)
+    if (done) { lr = { token, heard: true, end: 0 }; nb.classList.remove('wait'); fill(1, 0); return; }
     lr = { token, heard: false, end: performance.now() + WAIT };
     nb.classList.add('wait');
     fill(0, 0); void nb.offsetWidth;
@@ -1814,7 +1815,8 @@ h1 { margin: 0; font-size: clamp(40px, 8vmin, 84px); line-height: 1.02; font-wei
   $('#prevBtn').addEventListener('click', () => { if (li > 0) { sfx.tap(); li--; renderLearn(); } });
   $('#nextBtn').addEventListener('click', () => {
     const nb = $('#nextBtn');
-    if (!reads() && nb.classList.contains('wait')) {
+    // Safety net: once the card is woken and heard, Next always works, whatever the button's look says.
+    if (!reads() && nb.classList.contains('wait') && !(woke.has(li) && lr.heard)) {
       // Too early: a gentle shake, and the hand on the card if it still needs waking.
       nb.classList.remove('no'); void nb.offsetWidth; nb.classList.add('no');
       if (!woke.has(li)) { const h = $('#learnCard .tap-hint'); if (h) { h.style.animation = 'none'; void h.offsetWidth; h.style.animation = ''; } }
